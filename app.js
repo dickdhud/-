@@ -7,7 +7,7 @@
 /* دیتای پیش‌فرضی محصولات به js/data.js منتقل شد تا هم مرورگر و هم سرور از یک منبع استفاده کنند */
 
 const CATS = { women: 'زنانه', men: 'مردانه', acc: 'اکسسوری' };
-const FREE_AT = SETTINGS.freeShippingAt;   // ← از js/config.js
+let FREE_AT = SETTINGS.freeShippingAt;   // ← از js/config.js (با تنظیمات سرور بروزرسانی می‌شود)
 const FREE_SIZES = ['S', 'M', 'L', 'XL'];
 
 /* روش‌های ارسال و پرداخت از js/config.js خوانده می‌شوند */
@@ -406,9 +406,9 @@ function viewHome() {
   <section class="hero">
     <div class="hero-bg"><img src="hero.jpg" alt="کلکسیون زمستان نُوار"></div>
     <div class="hero-in">
-      <span class="kick"><i></i>کلکسیون پاییز و زمستان ۱۴۰۵<i></i></span>
-      <h1>شکوه، در سکوتِ<br><em>جزئیات</em> پنهان است</h1>
-      <p class="hero-sub">کشمیر مغولستان، چرم دباغی ایتالیا و ابریشمِ لیون؛ در قالب کلکسیونی محدود که هر قطعه‌اش برای سال‌ها خاطره می‌سازد، نه یک فصلِ گذرا.</p>
+      <span class="kick"><i></i>${esc(SETTINGS.hero.kick)}<i></i></span>
+      <h1>${esc(SETTINGS.hero.t1)}<br><em>${esc(SETTINGS.hero.t2)}</em> ${esc(SETTINGS.hero.t3)}</h1>
+      <p class="hero-sub">${esc(SETTINGS.hero.sub)}</p>
       <div class="hero-cta">
         <a href="#/shop" class="btn btn-solid">مشاهده کلکسیون ${I.arrow}</a>
         <a href="#/product/coat" class="btn btn-ghost">پالتو شاخص فصل</a>
@@ -1103,6 +1103,7 @@ function viewAbout() {
 /* ============================== BOOT ============================== */
 async function boot() {
   await initStore();
+  await loadSiteSettings();
   renderBadge();
   applySettings();
   router();
@@ -1111,6 +1112,34 @@ async function boot() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* PWA اختیاری است */ });
   }
+}
+
+/* ========== تنظیمات لبه سایت: اورراید سرور (یا حافظه محلی) روی config.js ========== */
+function applySettingOverrides(o) {
+  if (!o || typeof o !== 'object') return;
+  ['brandFa', 'brandEn', 'announce', 'phone', 'email', 'address', 'hours'].forEach(k => {
+    if (typeof o[k] === 'string' && o[k]) SETTINGS[k] = o[k];
+  });
+  if (typeof o.freeShippingAt === 'number' && o.freeShippingAt >= 0) {
+    SETTINGS.freeShippingAt = o.freeShippingAt;
+    FREE_AT = o.freeShippingAt;
+  }
+  if (o.hero && typeof o.hero === 'object') {
+    ['kick', 't1', 't2', 't3', 'sub'].forEach(k => {
+      if (typeof o.hero[k] === 'string' && o.hero[k]) SETTINGS.hero[k] = o.hero[k];
+    });
+  }
+}
+
+async function loadSiteSettings() {
+  try {
+    if (API_MODE) {
+      const j = await fetch('/api/settings').then(r => r.ok ? r.json() : {});
+      applySettingOverrides(j);
+    } else {
+      applySettingOverrides(load('noir_settings', null));
+    }
+  } catch (e) { /* تنظیمات پیش‌فرض استفاده می‌شود */ }
 }
 
 /* ============================== SETTINGS APPLY ============================== */

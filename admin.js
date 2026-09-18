@@ -6,7 +6,7 @@
    ===================================================================== */
 'use strict';
 
-const ADM_PASS = SETTINGS.adminPass;   // رمز نسخه استاتیک — در حالت سرور، رمز سمت سرور چک می‌شود
+/* رمز نسخه استاتیک از localStorage ('noir_spass') یا SETTINGS.adminPass خوانده می‌شود؛ در حالت سرور، رمز سمت سرور چک می‌شود */
 const isApi = () => (typeof API_MODE !== 'undefined' && API_MODE);
 const isAuthed = () => isApi() ? !!sessionStorage.getItem('noir_token') : sessionStorage.getItem('noir_admin') === '1';
 
@@ -34,6 +34,7 @@ function renderAdmin(seg, params) {
     sub === 'products' ? admProducts() :
     sub === 'orders' ? admOrders() :
     sub === 'discounts' ? admDiscounts() :
+    sub === 'settings' ? admSettings() :
     (sub === 'new' || sub === 'edit') ? admForm(sub === 'edit' ? (seg[2] || params.get('id')) : null) :
     admDash();
   return `
@@ -45,6 +46,7 @@ function renderAdmin(seg, params) {
         <a href="#/admin/products" class="${sub === 'products' ? 'on' : ''}">محصولات</a>
         <a href="#/admin/orders" class="${sub === 'orders' ? 'on' : ''}">سفارش‌ها <b class="adm-badge" id="admOrderBadge">۰</b></a>
         <a href="#/admin/discounts" class="${sub === 'discounts' ? 'on' : ''}">کدهای تخفیف</a>
+        <a href="#/admin/settings" class="${sub === 'settings' ? 'on' : ''}">تنظیمات سایت</a>
         <a href="#/admin/new" class="${sub === 'new' ? 'on' : ''}">+ محصول جدید</a>
       </nav>
       <div class="adm-side-foot">
@@ -67,6 +69,7 @@ function bindAdmin(seg) {
   const sub = (seg && seg[1]) || 'dash';
   if (sub === 'orders') fillOrders();
   if (sub === 'discounts') fillDiscounts();
+  if (sub === 'settings') fillSettings();
   if (sub === 'dash') fillDash();
 }
 function setBadge(el, n) { const b = qs(el); if (b) b.textContent = faNum(n); }
@@ -88,9 +91,7 @@ function admLoginView() {
         <span class="err-t">رمز عبور اشتباه است</span>
       </div>
       <button class="btn btn-solid btn-full" type="submit" style="margin-top:16px">ورود به پنل</button>
-      <p class="dim" style="font-size:11.5px;margin-top:14px;text-align:center">
-        ${isApi() ? 'رمز عبور امن سمت سرور بررسی می‌شود (پیش‌فرض دمو: <b dir="ltr" style="color:var(--gold2)">noir123</b>)' : 'رمز دمو: <b dir="ltr" style="color:var(--gold2)">' + esc(SETTINGS.adminPass) + '</b>'}
-      </p>
+      <p class="dim" style="font-size:11.5px;margin-top:14px;text-align:center">رمز عبور را مالک فروشگاه می‌داند و می‌تواند آن را از بخش «تنظیمات» تغییر دهد.</p>
       <a href="#/" style="display:block;text-align:center;font-size:12px;color:var(--mut);margin-top:18px">← بازگشت به فروشگاه</a>
     </form>
   </div>`;
@@ -223,6 +224,112 @@ function ordersListHTML(os) {
       </div>
     </div>
   </div>`).join('');
+}
+
+/* ============================== SITE SETTINGS ============================== */
+const SET_FIELDS = [
+  { sec: 'هویت برند' },
+  { k: 'brandFa', label: 'نام فارسی برند', ph: 'آتلیه نُوار' },
+  { k: 'brandEn', label: 'نام لاتین برند', ph: 'ATELIER NOIR' },
+  { k: 'announce', label: 'نوار اعلان بالای سایت (HTML ساده قابل استفاده است)', ph: 'ارسال رایگان برای سفارش‌های بالای ۵ میلیون تومان...' },
+  { sec: 'صفحه اصلی (بخش هیرو)' },
+  { k: 'hero.kick', label: 'خط کوچک بالای تیتر', ph: 'کلکسیون پاییز و زمستان ۱۴۰۵' },
+  { k: 'hero.t1', label: 'تیتر اصلی — بخش اول', ph: 'شکوه، در سکوتِ' },
+  { k: 'hero.t2', label: 'تیتر اصلی — کلمه طلایی ایتالیک', ph: 'جزئیات' },
+  { k: 'hero.t3', label: 'تیتر اصلی — بخش آخر', ph: 'پنهان است' },
+  { k: 'hero.sub', label: 'توضیحات زیر تیتر', ph: 'کشمیر مغولستان، چرم دباغی ایتالیا...', ta: true },
+  { sec: 'اطلاعات تماس و ارسال' },
+  { k: 'phone', label: 'تلفن', ph: '۰۲۱ - ۲۶۲۲ ۸۴۶۰' },
+  { k: 'email', label: 'ایمیل', ph: 'atelier@noir.ir' },
+  { k: 'address', label: 'آدرس فروشگاه', ph: 'تهران، خیابان ولیعصر...' },
+  { k: 'hours', label: 'ساعات پاسخگویی', ph: 'شنبه تا پنجشنبه، ۹ تا ۱۸' },
+  { k: 'freeShippingAt', label: 'سقف ارسال رایگان (تومان)', ph: '۵۰۰۰۰۰۰', type: 'number' }
+];
+
+function getSet(k) {
+  return k.startsWith('hero.') ? (SETTINGS.hero || {})[k.slice(5)] : SETTINGS[k];
+}
+
+function admSettings() {
+  return `
+  <div class="adm-h"><h1>تنظیمات سایت</h1></div>
+  <div id="setNote" style="max-width:760px"></div>
+  <form id="setForm" class="fsec" style="max-width:760px" novalidate>
+    ${SET_FIELDS.map(f => f.sec
+      ? `<h3 style="margin:18px 0 12px;color:var(--gold2)">${f.sec}</h3>`
+      : `<div class="field">
+          <label>${f.label}</label>
+          ${f.ta ? `<textarea data-setk="${f.k}" rows="2" placeholder="${esc(f.ph)}"></textarea>`
+                 : `<input data-setk="${f.k}"${f.type ? ` type="${f.type}"` : ''} placeholder="${esc(f.ph)}"${f.k === 'freeShippingAt' ? ' dir="ltr" style="text-align:left"' : ''}>`}
+        </div>`).join('')}
+    <button type="submit" class="btn btn-solid" style="margin-top:16px">💾 ذخیره تنظیمات و انتشار</button>
+  </form>
+
+  <form id="passForm" class="fsec" style="max-width:760px;margin-top:26px" novalidate>
+    <h3 style="margin-bottom:12px;color:var(--gold2)">تغییر رمز عبور مدیر</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div class="field"><label>رمز فعلی</label><input type="password" id="spCur" autocomplete="current-password"></div>
+      <div class="field"><label>رمز جدید</label><input type="password" id="spNew" autocomplete="new-password"></div>
+      <div class="field"><label>تکرار رمز جدید</label><input type="password" id="spNew2" autocomplete="new-password"></div>
+    </div>
+    <button type="submit" class="btn btn-dark" style="margin-top:14px">تغییر رمز</button>
+    <p class="dim" style="font-size:11px;margin-top:10px">رمز جدید بلافاصله فعال می‌شود؛ آن را جای امنی یادداشت کنید.</p>
+  </form>`;
+}
+
+function fillSettings() {
+  qsa('[data-setk]').forEach(inp => {
+    const v = getSet(inp.dataset.setk);
+    if (v !== undefined && v !== null && v !== '') inp.value = (inp.dataset.setk === 'freeShippingAt') ? v : String(v);
+  });
+  const n = qs('#setNote');
+  if (n) n.innerHTML = `<p class="dim" style="padding:8px 4px 16px;line-height:2">
+    این تنظیمات به‌صورت سراسری برای <b>همه بازدیدکنندگان</b> اعمال می‌شود.
+    ${isApi() ? 'تغییرها روی سرور و برای همیشه ذخیره می‌شوند ✦' : '⚠ در حالت دمو، تغییرها فقط روی همین مرورگر ذخیره می‌شوند؛ برای عمومی شدن، روی سرور واقعی (Render) اجرا کنید.'}
+    برای بازگشت هر فیلد به مقدار اولیه، آن را خالی بگذارید.</p>`;
+}
+
+async function saveSettingsForm(e) {
+  e.preventDefault();
+  const body = { hero: {} };
+  qsa('[data-setk]').forEach(inp => {
+    const v = inp.value.trim();
+    if (!v) return;                                  // خالی = بدون تغییر
+    const k = inp.dataset.setk;
+    if (k === 'freeShippingAt') body.freeShippingAt = Math.round(Math.abs(+v || 0));
+    else if (k.startsWith('hero.')) body.hero[k.slice(5)] = v;
+    else body[k] = v;
+  });
+  if (isApi()) {
+    let r; try { r = await apiFetch('/api/settings', { method: 'POST', body: JSON.stringify(body) }); }
+    catch (err) { toast('ذخیره تنظیمات روی سرور ممکن نشد', true); return; }
+    if (!r || !r.ok) { toast(r && r.error ? r.error : 'ذخیره ممکن نشد', true); return; }
+  } else {
+    const cur = load('noir_settings', {}) || {};
+    const merged = { ...cur, ...body, hero: { ...(cur.hero || {}), ...(body.hero || {}) } };
+    save('noir_settings', merged);
+  }
+  applySettingOverrides(body);
+  applySettings();                                   // هدر/فوتر فوراً بروزرسانی شود
+  toast('✔ تنظیمات ذخیره و اعمال شد');
+}
+
+async function changeAdminPass(e) {
+  e.preventDefault();
+  const cur = qs('#spCur').value, nw = qs('#spNew').value, nw2 = qs('#spNew2').value;
+  if (nw.length < 4) { toast('رمز جدید باید حداقل ۴ کاراکتر باشد', true); return; }
+  if (nw !== nw2) { toast('تکرار رمز جدید با خودش یکی نیست', true); return; }
+  if (isApi()) {
+    let r; try { r = await apiFetch('/api/settings/pass', { method: 'POST', body: JSON.stringify({ current: cur, next: nw }) }); }
+    catch (err) { toast('تغییر رمز ممکن نشد', true); return; }
+    if (!r || !r.ok) { toast(r && r.error ? r.error : 'رمز فعلی اشتباه است', true); return; }
+  } else {
+    const curPass = localStorage.getItem('noir_spass') || SETTINGS.adminPass;
+    if (cur !== curPass) { toast('رمز فعلی اشتباه است', true); return; }
+    localStorage.setItem('noir_spass', nw);
+  }
+  qs('#spCur').value = ''; qs('#spNew').value = ''; qs('#spNew2').value = '';
+  toast('✔ رمز عبور تغییر کرد — از این به بعد با رمز جدید وارد شوید');
 }
 
 /* ============================== DISCOUNT CODES ============================== */
@@ -684,6 +791,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('submit', e => {
     if (e.target.id === 'discForm') { discAdd(e); return; }
+    if (e.target.id === 'setForm') { saveSettingsForm(e); return; }
+    if (e.target.id === 'passForm') { changeAdminPass(e); return; }
     if (e.target.id === 'admLoginForm') {
       e.preventDefault();
       (async () => {
@@ -703,7 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
           } catch (err) {
             qs('#admPass').closest('.field').classList.add('err');
           }
-        } else if (pass === ADM_PASS) {
+        } else if (pass === (localStorage.getItem('noir_spass') || SETTINGS.adminPass)) {
           sessionStorage.setItem('noir_admin', '1');
           router();
           toast('خوش آمدید! وارد پنل مدیریت شدید');
