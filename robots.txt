@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# بعد از خرید دامنه، آدرس زیر را با دامنه خودتان عوض کنید:
+Sitemap: https://dickdhud.github.io/-/sitemap.xml

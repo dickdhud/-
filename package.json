@@ -1,0 +1,9 @@
+{
+  "name": "noir-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "آتلیه نُوار — فروشگاه پوشاک لوکس (فرانت + بک‌اند بدون وابستگی)",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

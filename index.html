@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>آتلیه نُوار | پوشاک لوکس — فروشگاه آنلاین</title>
+<meta name="description" content="آتلیه نُوار؛ کلکسیون پوشاک لوکس زنانه و مردانه با پارچه‌های وارداتی — پالتو کشمیر، چرم، ابریشم و اکسسوری.">
+<meta name="keywords" content="پوشاک لوکس, پالتو کشمیر, شال ابریشم, کیف چرم, خرید اینترنتی لباس, آتلیه نوار">
+<meta name="author" content="آتلیه نُوار">
+<meta name="theme-color" content="#0d0b08">
+<!-- Open Graph / اشتراک‌گذاری در شبکه‌های اجتماعی -->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fa_IR">
+<meta property="og:site_name" content="آتلیه نُوار">
+<meta property="og:title" content="آتلیه نُوار | پوشاک لوکس — فروشگاه آنلاین">
+<meta property="og:description" content="کشمیر مغولستان، چرم دباغی ایتالیا و ابریشم لیون؛ کلکسیون محدود پاییز و زمستان ۱۴۰۵">
+<meta property="og:image" content="hero.jpg">
+<!-- داده ساخت‌یافته برای گوگل -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ClothingStore",
+  "name": "آتلیه نُوار | Atelier Noir",
+  "description": "فروشگاه پوشاک لوکس زنانه و مردانه",
+  "logo": "https://dickdhud.github.io/-/hero.jpg",
+  "address": { "@type": "PostalAddress", "addressLocality": "تهران", "addressCountry": "IR" },
+  "telephone": "+98-21-26228460"
+}
+</script>
+<!-- PWA — نصب سایت روی گوشی مثل اپلیکیشن -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="آتلیه نُوار">
+<link rel="stylesheet" href="style.css">
+<link rel="preload" as="image" href="hero.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='7' width='18' height='18' transform='rotate(45 16 16)' fill='none' stroke='%23c9a15f' stroke-width='2'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- اعلان -->
+<div class="announce" data-set="announce">ارسال <b>رایگان</b> برای سفارش‌های بالای ۵ میلیون تومان &nbsp;◆&nbsp; ۷ روز ضمانت بازگشت</div>
+
+<!-- هدر -->
+<header class="site-head" id="siteHead">
+  <div class="container head-in">
+    <nav class="head-nav" aria-label="ناوبری اصلی">
+      <a href="#/" data-nav="home">خانه</a>
+      <a href="#/shop" data-nav="shop">فروشگاه</a>
+      <a href="#/shop?cat=women" data-nav="women">زنانه</a>
+      <a href="#/shop?cat=men" data-nav="men">مردانه</a>
+      <a href="#/shop?cat=acc" data-nav="acc">اکسسوری</a>
+      <a href="#/about" data-nav="about">درباره ما</a>
+    </nav>
+    <a href="#/" class="logo">
+      <span class="logo-fa" data-set="brandFa">آتلیه نُوار</span>
+      <span class="logo-en" data-set="brandEn">ATELIER NOIR</span>
+    </a>
+    <div class="head-icons">
+      <button class="ic-btn burger" id="menuBtn" aria-label="منو">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+      </button>
+      <button class="ic-btn" id="searchBtn" aria-label="جستجو">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </button>
+      <button class="ic-btn" id="cartBtn" aria-label="سبد خرید">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8V7a6 6 0 1 1 12 0v1"/><path d="M4 8h16l-1.2 12.1a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9L4 8z"/></svg>
+        <span class="ic-badge zero" id="cartCount">۰</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- نمای اصلی -->
+<main id="view"></main>
+
+<!-- فوتر -->
+<footer>
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#/" class="logo" style="text-align:right">
+          <span class="logo-fa" data-set="brandFa">آتلیه نُوار</span>
+          <span class="logo-en" data-set="brandEn" style="letter-spacing:.4em">ATELIER NOIR</span>
+        </a>
+        <p>آتلیه نُوار با وسواس انتخاب می‌کند: پارچه‌های طبیعی وارداتی، دوخت دستی و جزئیاتی که زمان کهنگار شان نمی‌کند. کلکسیون‌های محدود، برای آن‌هایی که در سکوتِ ساده، شکوه می‌خواهند.</p>
+        <div class="socials">
+          <a class="soc" href="#" aria-label="اینستاگرام" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none"/></svg></a>
+          <a class="soc" href="#" aria-label="تلگرام" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 3 2 11.5l6.5 2.3M22 3l-4 18-9.2-7.2M22 3 8.5 13.8V21l3.6-3.3"/></svg></a>
+          <a class="soc" href="#" aria-label="واتساپ" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.5 14.3c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.1-.2.2-.4.2-.7.1a7.5 7.5 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5v-.5c0-.1-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4a3.3 3.3 0 0 0-1 2.4c0 1.4 1 2.8 1.2 3 .1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4l-.7-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2z"/></svg></a>
+        </div>
+      </div>
+      <div class="fcol">
+        <h5>دسترسی سریع</h5>
+        <ul>
+          <li><a href="#/shop">همه محصولات</a></li>
+          <li><a href="#/shop?cat=women">کلکسیون زنانه</a></li>
+          <li><a href="#/shop?cat=men">کلکسیون مردانه</a></li>
+          <li><a href="#/shop?cat=acc">اکسسوری</a></li>
+          <li><a href="#/checkout">تکمیل خرید</a></li>
+          <li><a href="#/about">درباره آتلیه نُوار</a></li>
+          <li><a href="#/admin">ورود مدیران</a></li>
+        </ul>
+      </div>
+      <div class="fcol">
+        <h5>خدمات مشتریان</h5>
+        <ul>
+          <li><button data-info="track">پیگیری سفارش</button></li>
+          <li><button data-info="shipping">شیوه ارسال و هزینه</button></li>
+          <li><button data-info="returns">شرایط بازگشت کالا</button></li>
+          <li><button data-info="size">راهنمای سایز</button></li>
+          <li><button data-info="privacy">حریم خصوصی</button></li>
+        </ul>
+      </div>
+      <div class="fcol">
+        <h5>ارتباط با آتلیه</h5>
+        <ul>
+          <li><span><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg> <span data-set="address">تهران، خیابان ولیعصر، گالری هُنر، پلاک ۲۴</span></span></li>
+          <li><span><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.6 2z"/></svg> <span dir="ltr" data-set="phone">۰۲۱ - ۲۶۲۲ ۸۴۶۰</span></span></li>
+          <li><span><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg> <span data-set="email">atelier@noir.ir</span></span></li>
+          <li><span class="dim" style="font-size:12px" data-set="hours">پاسخگویی: شنبه تا پنجشنبه، ۹ تا ۱۸</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>© ۱۴۰۵ آتلیه نُوار — تمام حقوق محفوظ است.</span>
+      <span class="en">CRAFTED WITH CARE · EST. 2018</span>
+    </div>
+  </div>
+</footer>
+
+<!-- منوی موبایل -->
+<div class="m-nav" id="mNav">
+  <div class="m-head">
+    <span class="logo-fa" data-set="brandFa" style="font-size:18px">آتلیه نُوار</span>
+    <button class="ic-btn" id="navClose" aria-label="بستن">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <a class="m-link" href="#/">خانه<span class="en">HOME</span></a>
+  <a class="m-link" href="#/shop">فروشگاه<span class="en">SHOP</span></a>
+  <a class="m-link" href="#/shop?cat=women">زنانه<span class="en">WOMEN</span></a>
+  <a class="m-link" href="#/shop?cat=men">مردانه<span class="en">MEN</span></a>
+  <a class="m-link" href="#/shop?cat=acc">اکسسوری<span class="en">ACCESSORIES</span></a>
+  <a class="m-link" href="#/about">درباره ما<span class="en">ABOUT</span></a>
+  <div class="m-foot">
+    <p>ارسال رایگان برای سفارش‌های بالای ۵ میلیون تومان</p>
+    <p class="en" style="margin-top:10px;font-size:11px">ATELIER NOIR · TEHRAN</p>
+  </div>
+</div>
+
+<!-- جستجو -->
+<div class="search-ov" id="searchOv">
+  <div class="search-in">
+    <div class="search-top">
+      <span class="en">SEARCH · جستجو</span>
+      <button class="ic-btn" id="searchClose" aria-label="بستن">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="text" placeholder="دنبال چه قطعه‌ای هستید؟" autocomplete="off">
+    </div>
+    <p class="s-hint">مثلاً: پالتو، ابریشم، چرم، شال…</p>
+    <div class="s-results" id="searchResults"></div>
+  </div>
+</div>
+
+<!-- سبد خرید -->
+<div id="backdrop"></div>
+<aside class="drawer" id="cartDrawer" aria-label="سبد خرید"></aside>
+
+<!-- مودال اطلاعات -->
+<div class="modal" id="infoModal">
+  <div class="modal-card">
+    <h3><span id="imTitle"></span>
+      <svg data-close id="imClose" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </h3>
+    <div id="imBody"></div>
+  </div>
+</div>
+
+<!-- مودال راهنمای سایز -->
+<div class="modal" id="sizeModal">
+  <div class="modal-card">
+    <h3>راهنمای سایز
+      <svg data-close viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </h3>
+    <table>
+      <tr><th>سایز</th><th>دور سینه (cm)</th><th>دور کمر (cm)</th><th>قد (cm)</th></tr>
+      <tr><td>S</td><td>۸۶–۹۲</td><td>۶۸–۷۴</td><td>۱۶۵–۱۷۲</td></tr>
+      <tr><td>M</td><td>۹۳–۱۰۰</td><td>۷۵–۸۲</td><td>۱۷۲–۱۷۸</td></tr>
+      <tr><td>L</td><td>۱۰۱–۱۰۸</td><td>۸۳–۹۲</td><td>۱۷۸–۱۸۴</td></tr>
+      <tr><td>XL</td><td>۱۰۹–۱۱۶</td><td>۹۳–۱۰۲</td><td>۱۸۴–۱۹۲</td></tr>
+    </table>
+    <p style="margin-top:14px;font-size:12px">برای انتخاب دقیق‌تر، با مشاوران ما در تماس باشید: <span dir="ltr" data-set="phone">۰۲۱ - ۲۶۲۲ ۸۴۶۰</span></p>
+  </div>
+</div>
+
+<div id="toastWrap"></div>
+<div id="printArea" aria-hidden="true"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
