@@ -394,9 +394,9 @@ function viewHome() {
   const featured = ['coat', 'leather', 'silk', 'bag'].map(PROD);
   const news = ['cardigan', 'skirt', 'sweater', 'scarf'].map(PROD);
   const catCards = [
-    { k: 'women', t: 'زنانه', e: 'WOMEN', img: 'coat-camel.jpg' },
-    { k: 'men', t: 'مردانه', e: 'MEN', img: 'leather-jacket.jpg' },
-    { k: 'acc', t: 'اکسسوری', e: 'ACCESSORIES', img: 'bag.jpg' }
+    { k: 'women', t: 'زنانه', e: 'WOMEN', img: SETTINGS.imgs.catWomen },
+    { k: 'men', t: 'مردانه', e: 'MEN', img: SETTINGS.imgs.catMen },
+    { k: 'acc', t: 'اکسسوری', e: 'ACCESSORIES', img: SETTINGS.imgs.catAcc }
   ];
   const mqItems = ['ارسال رایگان سراسری بالای ۵ میلیون تومان', 'ضمانت اصالت و کیفیت کالا', '۷ روز ضمانت بازگشت بدون قید و شرط', 'بسته‌بندی هدیه‌ی مخصوص نُوار', 'کلکسیون پاییز و زمستان ۱۴۰۵'];
   const mqRow = mqItems.map(t => `<span class="mq-item"><b>◆</b>${t}</span>`).join('');
@@ -404,7 +404,7 @@ function viewHome() {
   return `
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-bg"><img src="hero.jpg" alt="کلکسیون زمستان نُوار"></div>
+    <div class="hero-bg"><img src="${esc(SETTINGS.imgs.hero)}" alt="کلکسیون زمستان نُوار"></div>
     <div class="hero-in">
       <span class="kick"><i></i>${esc(SETTINGS.hero.kick)}<i></i></span>
       <h1>${esc(SETTINGS.hero.t1)}<br><em>${esc(SETTINGS.hero.t2)}</em> ${esc(SETTINGS.hero.t3)}</h1>
@@ -466,7 +466,7 @@ function viewHome() {
   <section class="sec">
     <div class="container">
       <div class="edit rv">
-        <div class="edit-img"><img src="lookbook.jpg" alt="لوک‌بوک نُوار" loading="lazy"></div>
+        <div class="edit-img"><img src="${esc(SETTINGS.imgs.lookbook)}" alt="لوک‌بوک نُوار" loading="lazy"></div>
         <div class="edit-txt">
           <span class="kick" style="margin-bottom:0"><i></i>داستان نُوار</span>
           <h2>لباسِ خوب، فریاد<br>نمی‌زند؛ <em>زمزمه</em> می‌کند</h2>
@@ -1038,7 +1038,7 @@ function openPanelQ(sel) { openPanel(sel); }
 function viewAbout() {
   return `
   <section class="ah">
-    <img src="lookbook.jpg" alt="درباره ${SETTINGS.brandFa}">
+    <img src="${esc(SETTINGS.imgs.lookbook)}" alt="درباره ${SETTINGS.brandFa}">
     <div class="ah-ov"></div>
     <div class="ah-tx">
       <span class="kick"><i></i>داستان ما<i></i></span>
@@ -1114,9 +1114,17 @@ async function boot() {
   }
 }
 
+/* نسخه اولیه تنظیمات قبل از هر اورراید — برای دکمه «بازگشت به پیش‌فرض» */
+const SETTINGS_INIT = JSON.parse(JSON.stringify(SETTINGS));
+
 /* ========== تنظیمات لبه سایت: اورراید سرور (یا حافظه محلی) روی config.js ========== */
 function applySettingOverrides(o) {
   if (!o || typeof o !== 'object') return;
+  if (o.imgs && typeof o.imgs === 'object') {
+    ['catWomen', 'catMen', 'catAcc', 'hero', 'lookbook'].forEach(k => {
+      if (typeof o.imgs[k] === 'string' && o.imgs[k]) SETTINGS.imgs[k] = o.imgs[k];
+    });
+  }
   ['brandFa', 'brandEn', 'announce', 'phone', 'email', 'address', 'hours'].forEach(k => {
     if (typeof o[k] === 'string' && o[k]) SETTINGS[k] = o[k];
   });

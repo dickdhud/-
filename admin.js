@@ -250,6 +250,16 @@ function getSet(k) {
   return k.startsWith('hero.') ? (SETTINGS.hero || {})[k.slice(5)] : SETTINGS[k];
 }
 
+/* تصاویر قابل ویرایش صفحه اصلی */
+const SET_IMGS = [
+  { k: 'hero', label: 'عکس بزرگ بخش هیرو' },
+  { k: 'catWomen', label: 'کاور دسته‌بندی زنانه' },
+  { k: 'catMen', label: 'کاور دسته‌بندی مردانه' },
+  { k: 'catAcc', label: 'کاور دسته‌بندی اکسسوری' },
+  { k: 'lookbook', label: 'عکس بخش ویراستاری و درباره ما' }
+];
+function getSetImg(k) { return (SETTINGS.imgs || {})[k] || SETTINGS_INIT.imgs[k]; }
+
 function admSettings() {
   return `
   <div class="adm-h"><h1>تنظیمات سایت</h1></div>
@@ -262,6 +272,24 @@ function admSettings() {
           ${f.ta ? `<textarea data-setk="${f.k}" rows="2" placeholder="${esc(f.ph)}"></textarea>`
                  : `<input data-setk="${f.k}"${f.type ? ` type="${f.type}"` : ''} placeholder="${esc(f.ph)}"${f.k === 'freeShippingAt' ? ' dir="ltr" style="text-align:left"' : ''}>`}
         </div>`).join('')}
+
+    <h3 style="margin:22px 0 12px;color:var(--gold2)">تصاویر صفحه اصلی</h3>
+    <p class="dim" style="font-size:12px;margin-bottom:14px">روی «تغییر تصویر» بزنید و عکس جدید را انتخاب کنید؛ تصویر به‌صورت خودکار بهینه می‌شود.</p>
+    <div class="setimgs">
+      ${SET_IMGS.map(x => `
+        <div class="setimg">
+          <img src="${esc(getSetImg(x.k))}" alt="" id="simPrev-${x.k}">
+          <input type="hidden" data-setimgval="${x.k}">
+          <div class="setimg-btns">
+            <label class="btn btn-dark btn-sm" style="justify-content:center">تغییر تصویر
+              <input type="file" data-setimg="${x.k}" accept="image/*" hidden>
+            </label>
+            <button type="button" class="btn btn-ghost btn-sm" data-setimgdef="${x.k}">پیش‌فرض</button>
+          </div>
+          <span class="setimg-lbl">${x.label}</span>
+        </div>`).join('')}
+    </div>
+
     <button type="submit" class="btn btn-solid" style="margin-top:16px">💾 ذخیره تنظیمات و انتشار</button>
   </form>
 
@@ -282,6 +310,7 @@ function fillSettings() {
     const v = getSet(inp.dataset.setk);
     if (v !== undefined && v !== null && v !== '') inp.value = (inp.dataset.setk === 'freeShippingAt') ? v : String(v);
   });
+  SET_IMGS.forEach(x => { const h = qs(`[data-setimgval="${x.k}"]`); if (h) h.value = ''; });
   const n = qs('#setNote');
   if (n) n.innerHTML = `<p class="dim" style="padding:8px 4px 16px;line-height:2">
     این تنظیمات به‌صورت سراسری برای <b>همه بازدیدکنندگان</b> اعمال می‌شود.
@@ -291,7 +320,7 @@ function fillSettings() {
 
 async function saveSettingsForm(e) {
   e.preventDefault();
-  const body = { hero: {} };
+  const body = { hero: {}, imgs: {} };
   qsa('[data-setk]').forEach(inp => {
     const v = inp.value.trim();
     if (!v) return;                                  // خالی = بدون تغییر
@@ -300,13 +329,18 @@ async function saveSettingsForm(e) {
     else if (k.startsWith('hero.')) body.hero[k.slice(5)] = v;
     else body[k] = v;
   });
+  /* تصاویر تغییریافته (یا بازگردانده‌شده به پیش‌فرض) */
+  qsa('[data-setimgval]').forEach(h => {
+    if (h.value) body.imgs[h.dataset.setimgval] = h.value;
+  });
+  if (!Object.keys(body.imgs).length) delete body.imgs;
   if (isApi()) {
     let r; try { r = await apiFetch('/api/settings', { method: 'POST', body: JSON.stringify(body) }); }
     catch (err) { toast('ذخیره تنظیمات روی سرور ممکن نشد', true); return; }
     if (!r || !r.ok) { toast(r && r.error ? r.error : 'ذخیره ممکن نشد', true); return; }
   } else {
     const cur = load('noir_settings', {}) || {};
-    const merged = { ...cur, ...body, hero: { ...(cur.hero || {}), ...(body.hero || {}) } };
+    const merged = { ...cur, ...body, hero: { ...(cur.hero || {}), ...(body.hero || {}) }, imgs: { ...(cur.imgs || {}), ...(body.imgs || {}) } };
     save('noir_settings', merged);
   }
   applySettingOverrides(body);
@@ -663,6 +697,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dt) { discToggle(dt.dataset.dtog); return; }
     const dd = e.target.closest('[data-ddel]');
     if (dd) { askBox(`کد «${dd.dataset.ddel}» برای همیشه حذف می‌شود. ادامه می‌دهید؟`, 'حذف', () => discDelete(dd.dataset.ddel)); return; }
+    const sdef = e.target.closest('[data-setimgdef]');
+    if (sdef) {
+      const k = sdef.dataset.setimgdef;
+      qs('#simPrev-' + k).src = SETTINGS_INIT.imgs[k];       // بازگشت به تصویر اولیه
+      qs(`[data-setimgval="${k}"]`).value = SETTINGS_INIT.imgs[k];
+      toast('«پیش‌فرض» انتخاب شد — با «ذخیره تنظیمات» اعمال می‌شود');
+      return;
+    }
     if (e.target.closest('#admReset')) {
       askBox('همه‌ی تغییرات محصولات و سفارش‌ها پاک می‌شود و دیتای اولیه برمی‌گردد. ادامه می‌دهید؟', 'بازنشانی', async () => {
         if (isApi()) {
@@ -778,6 +820,27 @@ document.addEventListener('DOMContentLoaded', () => {
         qs('#admImgPrev').src = d;
         toast('تصویر آماده شد — با ذخیره‌ی فرم اعمال می‌شود');
       }).catch(() => toast('خواندن تصویر ممکن نشد', true));
+      return;
+    }
+    /* آپلود تصاویر بخش تنظیمات */
+    const simIn = e.target.closest('[data-setimg]');
+    if (simIn && simIn.files && simIn.files[0]) {
+      const f = simIn.files[0], k = simIn.dataset.setimg;
+      if (!/^image\//.test(f.type)) { toast('فقط فایل تصویری قابل قبول است', true); return; }
+      processImage(f).then(async d => {
+        qs('#simPrev-' + k).src = d;                 // پیش‌نمایش فوری
+        if (isApi()) {
+          try {
+            const r = await apiFetch('/api/upload', { method: 'POST', body: JSON.stringify({ data: d }) });
+            qs(`[data-setimgval="${k}"]`).value = r.path;
+            toast('تصویر روی سرور بارگذاری شد — با «ذخیره تنظیمات» منتشر می‌شود');
+            return;
+          } catch (err) { /* ماندن حالت دیتایی */ }
+        }
+        qs(`[data-setimgval="${k}"]`).value = d;
+        toast('تصویر آماده است — با «ذخیره تنظیمات» اعمال می‌شود');
+      }).catch(() => toast('خواندن تصویر ممکن نشد', true));
+      simIn.value = '';
       return;
     }
   });
