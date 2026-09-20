@@ -59,6 +59,14 @@ const SEED_DISCOUNTS = [
   { code: 'WELCOME15', percent: 15, active: true }
 ];
 if (!Array.isArray(DB.discounts)) DB.discounts = SEED_DISCOUNTS.map(d => ({ ...d }));
+/* تنظیمات لبه سایت (اوررایدهای ادمین روی config.js) */
+if (!DB.settings || typeof DB.settings !== 'object') DB.settings = {};
+/* رمز فعلی ادمین: اولی محیطی است تا بعداً از پنل تعیین شود (null = از env) */
+if (DB.adminPass === undefined) DB.adminPass = null;
+const effPass = () => DB.adminPass || ADMIN_PASS;
+/* کارمندان (مدیران فروشگاه) — هرکدام نام کاربری/رمز/سطح دسترسی جدا */
+if (!Array.isArray(DB.managers)) DB.managers = [];
+/* DB.managers: [{ id, name, user, pass, perms:['products','orders','discounts'], created }] */
 saveDB();
 
 function saveDB() {
@@ -70,16 +78,28 @@ function saveDB() {
 
 /* ------------------------ نشست‌های ادمین (توکن) ------------------------ */
 const sessions = new Map();
-function newToken() {
+function newToken(role = 'owner', mgrId = null) {
   const t = crypto.randomBytes(24).toString('hex');
-  sessions.set(t, Date.now() + 12 * 3600 * 1000);
+  sessions.set(t, { exp: Date.now() + 12 * 3600 * 1000, role, mgrId });
   return t;
 }
-function authOK(req) {
+function authSession(req) {
   const t = req.headers['x-admin-token'];
-  if (!t || !sessions.has(t)) return false;
-  if (sessions.get(t) < Date.now()) { sessions.delete(t); return false; }
-  return true;
+  if (!t || !sessions.has(t)) return null;
+  const s = sessions.get(t);
+  if (s.exp < Date.now()) { sessions.delete(t); return null; }
+  return s;                                          // { role, mgrId, exp }
+}
+function authOK(req) { return authSession(req) !== null; }
+function ownerOK(req) { const s = authSession(req); return !!s && s.role === 'owner'; }
+const ALL_PERMS = ['products', 'orders', 'discounts'];
+function permOK(req, perm) {
+  const s = authSession(req);
+  if (!s) return false;
+  if (s.role === 'owner') return true;               // مالک همه کاره است
+  if (s.role !== 'manager') return false;
+  const m = DB.managers.find(x => x.id === s.mgrId); // تازه از دیتابیس — حذف مدیر بلافاصله اثر می‌کند
+  return !!m && Array.isArray(m.perms) && m.perms.includes(perm);
 }
 
 /* ------------------------ ابزار ------------------------ */
@@ -153,14 +173,64 @@ async function handleApi(req, res, pathn) {
   /* سلامت */
   if (pathn === '/api/health') return send(res, 200, { ok: true, mode: 'server', products: DB.products.length });
 
-  /* ورود مدیر */
+  /* ورود: مالک فقط با رمز — مدیران فروشگاه با نام کاربری + رمز */
   if (pathn === '/api/login' && req.method === 'POST') {
     const ip = req.socket.remoteAddress || 'x';
     if (rateBlock(ip)) return send(res, 429, { error: 'تعداد تلاش‌ها بیش از حد است؛ کمی بعد تلاش کنید' });
     let body = {};
     try { body = JSON.parse(await readBody(req) || '{}'); } catch (e) { }
-    if (body.pass === ADMIN_PASS) { loginAttempts.delete(ip); return send(res, 200, { token: newToken() }); }
-    return send(res, 401, { error: 'رمز اشتباه است' });
+    const user = String(body.user || '').trim();
+    if (!user && body.pass === effPass()) { loginAttempts.delete(ip); return send(res, 200, { token: newToken('owner'), role: 'owner' }); }
+    if (user) {
+      const m = DB.managers.find(x => x.user.toLowerCase() === user.toLowerCase() && x.pass === String(body.pass || ''));
+      if (m) { loginAttempts.delete(ip); return send(res, 200, { token: newToken('manager', m.id), role: 'manager', perms: m.perms, name: m.name || m.user, user: m.user }); }
+    }
+    return send(res, 401, { error: 'نام کاربری یا رمز اشتباه است' });
+  }
+
+  /* ---------- مدیریت مدیران فروشگاه — فقط مالک ---------- */
+  if (pathn === '/api/managers' && req.method === 'GET') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    return send(res, 200, DB.managers.map(m => ({ id: m.id, user: m.user, name: m.name, perms: m.perms, created: m.created })));
+  }
+  if (pathn === '/api/managers' && req.method === 'POST') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'بدنه نامعتبر' }); }
+    const user = String(b.user || '').trim();
+    const pass = String(b.pass || '');
+    if (!/^[a-zA-Z0-9_.-]{3,40}$/.test(user)) return send(res, 400, { error: 'نام کاربری باید ۳ تا ۴۰ کاراکتر لاتین/عدد باشد' });
+    if (user.toLowerCase() === 'owner' || user.toLowerCase() === 'admin') return send(res, 400, { error: 'این نام کاربری مجاز نیست' });
+    if (DB.managers.some(m => m.user.toLowerCase() === user.toLowerCase())) return send(res, 400, { error: 'این نام کاربری قبلاً تعریف شده است' });
+    if (pass.length < 4 || pass.length > 60) return send(res, 400, { error: 'رمز باید ۴ تا ۶۰ کاراکتر باشد' });
+    const perms = (Array.isArray(b.perms) ? b.perms : []).filter(p => ALL_PERMS.includes(p));
+    const m = { id: crypto.randomBytes(6).toString('hex'), user, pass, name: String(b.name || '').slice(0, 60), perms, created: new Date().toISOString() };
+    DB.managers.push(m); saveDB();
+    return send(res, 200, { id: m.id, user: m.user, name: m.name, perms: m.perms, created: m.created });
+  }
+  let mm = pathn.match(/^\/api\/managers\/([^\/]+)$/);
+  if (mm && req.method === 'PUT') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    const m = DB.managers.find(x => x.id === mm[1]);
+    if (!m) return send(res, 404, { error: 'مدیر پیدا نشد' });
+    let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'بدنه نامعتبر' }); }
+    if (b.perms !== undefined) m.perms = (Array.isArray(b.perms) ? b.perms : []).filter(p => ALL_PERMS.includes(p));
+    if (b.name !== undefined) m.name = String(b.name || '').slice(0, 60);
+    if (b.pass) {
+      const np = String(b.pass);
+      if (np.length < 4 || np.length > 60) return send(res, 400, { error: 'رمز باید ۴ تا ۶۰ کاراکتر باشد' });
+      m.pass = np;
+      for (const [t, s] of sessions) if (s.mgrId === m.id) sessions.delete(t);   // نشست‌های قدیمی باطل
+    }
+    saveDB();
+    return send(res, 200, { id: m.id, user: m.user, name: m.name, perms: m.perms, created: m.created });
+  }
+  if (mm && req.method === 'DELETE') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    const before = DB.managers.length;
+    DB.managers = DB.managers.filter(x => x.id !== mm[1]);
+    for (const [t, s] of sessions) if (s.mgrId === mm[1]) sessions.delete(t);      // نشست‌های او باطل می‌شود
+    saveDB();
+    return send(res, 200, { ok: true, removed: before - DB.managers.length });
   }
 
   /* لیست محصولات — عمومی */
@@ -168,7 +238,7 @@ async function handleApi(req, res, pathn) {
 
   /* افزودن محصول */
   if (pathn === '/api/products' && req.method === 'POST') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'products'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     let p; try { p = cleanProduct(JSON.parse(await readBody(req))); } catch (e) { return send(res, 400, { error: 'bad json' }); }
     if (!p.name) return send(res, 400, { error: 'نام محصول الزامی است' });
     if (DB.products.some(x => x.id === p.id)) p.id += '-' + Math.floor(Math.random() * 999);
@@ -179,7 +249,7 @@ async function handleApi(req, res, pathn) {
   /* ویرایش محصول */
   let m = pathn.match(/^\/api\/products\/([^\/]+)$/);
   if (m && req.method === 'PUT') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'products'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     const i = DB.products.findIndex(x => x.id === m[1]);
     if (i === -1) return send(res, 404, { error: 'محصول پیدا نشد' });
     let p; try { p = cleanProduct(JSON.parse(await readBody(req))); } catch (e) { return send(res, 400, { error: 'bad json' }); }
@@ -190,7 +260,7 @@ async function handleApi(req, res, pathn) {
 
   /* حذف محصول */
   if (m && req.method === 'DELETE') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'products'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     const before = DB.products.length;
     DB.products = DB.products.filter(x => x.id !== m[1]);
     saveDB();
@@ -213,7 +283,7 @@ async function handleApi(req, res, pathn) {
 
   /* لیست سفارش‌ها — ادمین */
   if (pathn === '/api/orders' && req.method === 'GET') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'orders'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     return send(res, 200, DB.orders);
   }
 
@@ -251,13 +321,64 @@ async function handleApi(req, res, pathn) {
   /* تغییر وضعیت سفارش */
   m = pathn.match(/^\/api\/orders\/([^\/]+)$/);
   if (m && req.method === 'PATCH') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'orders'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { }
     const o = DB.orders.find(x => x.no === decodeURIComponent(m[1]));
     if (!o) return send(res, 404, { error: 'سفارش پیدا نشد' });
     o.status = String(b.status || o.status).slice(0, 40);
     saveDB();
     return send(res, 200, { ok: true, status: o.status });
+  }
+
+  /* ---------- تنظیمات سایت ---------- */
+
+  /* دریافت تنظیمات لبه سایت — عمومی (بدون رمز ادمین!) */
+  if (pathn === '/api/settings' && req.method === 'GET') {
+    const { adminPass, ...safe } = DB.settings || {};
+    return send(res, 200, safe);
+  }
+
+  /* ذخیره تنظیمات — ادمین */
+  if (pathn === '/api/settings' && req.method === 'POST') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'بدنه نامعتبر' }); }
+    /* فقط کلیدهای مجاز — هر رشته با سقف طول */
+    const ALLOW = {
+      brandFa: 60, brandEn: 60, announce: 300, phone: 40, email: 80, address: 200, hours: 80,
+      'hero.kick': 80, 'hero.t1': 80, 'hero.t2': 40, 'hero.t3': 40, 'hero.sub': 300,
+      'imgs.hero': 400, 'imgs.lookbook': 400, 'imgs.catWomen': 400, 'imgs.catMen': 400, 'imgs.catAcc': 400
+    };
+    const next = { ...(DB.settings || {}) };
+    for (const [k, max] of Object.entries(ALLOW)) {
+      let val;
+      if (k.startsWith('hero.')) val = b.hero && b.hero[k.slice(5)];
+      else if (k.startsWith('imgs.')) val = b.imgs && b.imgs[k.slice(5)];
+      else val = b[k];
+      if (typeof val === 'string' && val.trim()) {
+        const clean = val.slice(0, max);
+        if (val.startsWith('data:')) continue;                    // مسیر لازم است، نه دیتای خام
+        if (k.startsWith('hero.')) { next.hero = next.hero || {}; next.hero[k.slice(5)] = clean; }
+        else if (k.startsWith('imgs.')) { next.imgs = next.imgs || {}; next.imgs[k.slice(5)] = clean; }
+        else next[k] = clean;
+      }
+    }
+    if (typeof b.freeShippingAt === 'number' && b.freeShippingAt >= 0 && b.freeShippingAt <= 1e10)
+      next.freeShippingAt = Math.round(b.freeShippingAt);
+    DB.settings = next;
+    saveDB();
+    return send(res, 200, { ok: true });
+  }
+
+  /* تغییر رمز عبور مالک (یا رمز مدیر فروشگاه با mgr:true) — فقط مالک */
+  if (pathn === '/api/settings/pass' && req.method === 'POST') {
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
+    let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'بدنه نامعتبر' }); }
+    if (String(b.current || '') !== effPass()) return send(res, 403, { error: 'رمز فعلی اشتباه است' });
+    const np = String(b.next || '');
+    if (np.length < 4 || np.length > 60) return send(res, 400, { error: 'رمز جدید باید ۴ تا ۶۰ کاراکتر باشد' });
+    DB.adminPass = np;
+    saveDB();
+    return send(res, 200, { ok: true });
   }
 
   /* ---------- کدهای تخفیف ---------- */
@@ -272,13 +393,13 @@ async function handleApi(req, res, pathn) {
 
   /* لیست همه کدها — ادمین */
   if (pathn === '/api/discounts' && req.method === 'GET') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'discounts'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     return send(res, 200, DB.discounts);
   }
 
   /* افزودن کد — ادمین */
   if (pathn === '/api/discounts' && req.method === 'POST') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'discounts'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'بدنه نامعتبر' }); }
     const code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     const percent = Math.min(90, Math.max(1, Math.round(Math.abs(+b.percent || 0))));
@@ -295,7 +416,7 @@ async function handleApi(req, res, pathn) {
   {
     const dm = pathn.match(/^\/api\/discounts\/([^\/]+)$/);
     if (dm && dm[1] !== 'validate') {
-      if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+      if (!(permOK(req, 'discounts'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
       const code = decodeURIComponent(dm[1]).toUpperCase();
       const d = DB.discounts.find(x => x.code.toUpperCase() === code);
       if (!d) return send(res, 404, { error: 'کد پیدا نشد' });
@@ -315,24 +436,26 @@ async function handleApi(req, res, pathn) {
 
   /* بازنشانی دیتا — ادمین */
   if (pathn === '/api/reset' && req.method === 'POST') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
     DB.products = DEFAULT_PRODUCTS.map(p => ({ ...p }));
     DB.orders = [];
     DB.reviews = SEED_REVIEWS.slice();
     DB.discounts = SEED_DISCOUNTS.map(d => ({ ...d }));
+    DB.settings = {};
+    DB.adminPass = null;
     saveDB();
     return send(res, 200, { ok: true });
   }
 
   /* پشتیبان‌گیری از دیتابیس — ادمین */
   if (pathn === '/api/backup' && req.method === 'GET') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
     return send(res, 200, DB, { 'Content-Disposition': 'attachment; filename="noir-backup.json"' });
   }
 
   /* بازیابی نسخه پشتیبان — ادمین */
   if (pathn === '/api/restore' && req.method === 'POST') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!ownerOK(req)) return send(res, 403, { error: 'این بخش فقط برای مالک فروشگاه است' });
     let b; try { b = JSON.parse(await readBody(req, 30)); } catch (e) { return send(res, 400, { error: 'فایل پشتیبان معتبر نیست' }); }
     if (!b || !Array.isArray(b.products) || !Array.isArray(b.orders)) return send(res, 400, { error: 'ساختار فایل پشتیبان درست نیست' });
     DB.products = b.products.slice(0, 500).map(cleanProduct);
@@ -376,6 +499,8 @@ async function handleApi(req, res, pathn) {
       const code = String(d.code || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
       return code ? { code, percent: Math.min(90, Math.max(1, Math.round(Math.abs(+d.percent || 10)))), active: d.active !== false } : null;
     }).filter(Boolean);
+    if (b.settings && typeof b.settings === 'object') DB.settings = b.settings;
+    if (typeof b.adminPass === 'string' && b.adminPass.length >= 4) DB.adminPass = b.adminPass.slice(0, 60);
     if (!DB.products.length) DB.products = DEFAULT_PRODUCTS.map(p => ({ ...p }));
     saveDB();
     return send(res, 200, { ok: true, products: DB.products.length, orders: DB.orders.length });
@@ -413,7 +538,7 @@ async function handleApi(req, res, pathn) {
   /* حذف نظر — ادمین */
   m = pathn.match(/^\/api\/reviews\/([^\/]+)$/);
   if (m && req.method === 'DELETE') {
-    if (!authOK(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!(permOK(req, 'products'))) return send(res, 403, { error: 'شما به این بخش دسترسی ندارید' });
     const before = DB.reviews.length;
     DB.reviews = DB.reviews.filter(x => x.id !== decodeURIComponent(m[1]));
     saveDB();

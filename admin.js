@@ -9,6 +9,16 @@
 /* رمز نسخه استاتیک از localStorage ('noir_spass') یا SETTINGS.adminPass خوانده می‌شود؛ در حالت سرور، رمز سمت سرور چک می‌شود */
 const isApi = () => (typeof API_MODE !== 'undefined' && API_MODE);
 const isAuthed = () => isApi() ? !!sessionStorage.getItem('noir_token') : sessionStorage.getItem('noir_admin') === '1';
+/* نقش: مالک دارای دسترسی کامل — مدیر فروشگاه فقط بخش‌هایی که مالک به او داده */
+const admRole = () => sessionStorage.getItem('noir_role') || 'owner';
+const isOwner = () => admRole() !== 'manager';
+const admPerms = () => { try { return JSON.parse(sessionStorage.getItem('noir_perms') || '[]'); } catch (e) { return []; } };
+const admName = () => sessionStorage.getItem('noir_name') || '';
+/* آیا به بخش مشخصی دسترسی دارد؟ مالک همیشه همه‌جا؛ مدیر فقط بخش‌های دارای مجوز */
+function canDo(perm) {
+  if (isOwner()) return true;
+  return admPerms().includes(perm);
+}
 
 const STATUS = ['در حال پردازش', 'در انتظار پرداخت', 'پرداخت شده', 'آماده‌سازی', 'ارسال شده', 'تحویل شده', 'لغو شده'];
 const STATUS_COLOR = {
@@ -30,38 +40,70 @@ async function syncAfter() {
 function renderAdmin(seg, params) {
   if (!isAuthed()) return admLoginView();
   const sub = seg[1] || 'dash';
+  /* کنترل سطح دسترسی برای مدیران فروشگاه */
+  const PERM_LABEL = { settings: 'تنظیمات سایت', managers: 'مدیران فروشگاه', products: 'مدیریت محصولات', orders: 'مدیریت سفارش‌ها', discounts: 'کدهای تخفیف' };
+  const needPerm =
+    sub === 'settings' ? 'settings' :
+    sub === 'managers' ? 'managers' :
+    (sub === 'products' || sub === 'new' || sub === 'edit') ? 'products' :
+    sub === 'orders' ? 'orders' :
+    sub === 'discounts' ? 'discounts' : null;
+  if (needPerm && !canDo(needPerm === 'settings' || needPerm === 'managers' ? needPerm : needPerm)) {
+    const lbl = PERM_LABEL[needPerm] || 'این بخش';
+    return `
+    <div class="adm">
+      ${admSide(sub)}
+      <main class="adm-main">
+        <div class="adm-h"><h1>⛔ دسترسی محدود</h1></div>
+        <div class="fsec" style="max-width:520px;padding:36px;text-align:center">
+          <p style="font-size:15px;line-height:2">«${lbl}» برای نقش شما فعال نیست.<br>برای دسترسی با <b>مالک فروشگاه</b> تماس بگیرید${admName() ? ` — شما به‌عنوان «${admName()}» وارد شده‌اید` : ''}.</p>
+          <a href="#/admin" class="btn btn-dark" style="margin-top:14px">بازگشت به داشبورد</a>
+        </div>
+      </main>
+    </div>`;
+  }
   const main =
     sub === 'products' ? admProducts() :
     sub === 'orders' ? admOrders() :
     sub === 'discounts' ? admDiscounts() :
     sub === 'settings' ? admSettings() :
+    sub === 'managers' ? admManagers() :
     (sub === 'new' || sub === 'edit') ? admForm(sub === 'edit' ? (seg[2] || params.get('id')) : null) :
     admDash();
   return `
   <div class="adm">
+    ${admSide(sub)}
+    <main class="adm-main">${main}</main>
+  </div>`;
+}
+
+/* سایدبار مشترک پنل — مدیر فروشگاه برخی دکمه‌ها را نمی‌بیند */
+function admSide(sub) {
+  return `
     <aside class="adm-side">
-      <div class="adm-logo">آتلیه نُوار<span>پنل مدیریت فروشگاه</span></div>
+      <div class="adm-logo">آتلیه نُوار<span>${isOwner() ? 'پنل مدیریت فروشگاه' : 'نقش: مدیر فروشگاه 👔'}</span></div>
       <nav class="adm-nav">
         <a href="#/admin" class="${sub === 'dash' ? 'on' : ''}">داشبورد</a>
-        <a href="#/admin/products" class="${sub === 'products' ? 'on' : ''}">محصولات</a>
-        <a href="#/admin/orders" class="${sub === 'orders' ? 'on' : ''}">سفارش‌ها <b class="adm-badge" id="admOrderBadge">۰</b></a>
-        <a href="#/admin/discounts" class="${sub === 'discounts' ? 'on' : ''}">کدهای تخفیف</a>
-        <a href="#/admin/settings" class="${sub === 'settings' ? 'on' : ''}">تنظیمات سایت</a>
-        <a href="#/admin/new" class="${sub === 'new' ? 'on' : ''}">+ محصول جدید</a>
+        ${canDo('products') ? `<a href="#/admin/products" class="${sub === 'products' ? 'on' : ''}">محصولات</a>` : ''}
+        ${canDo('orders') ? `<a href="#/admin/orders" class="${sub === 'orders' ? 'on' : ''}">سفارش‌ها <b class="adm-badge" id="admOrderBadge">۰</b></a>` : ''}
+        ${canDo('discounts') ? `<a href="#/admin/discounts" class="${sub === 'discounts' ? 'on' : ''}">کدهای تخفیف</a>` : ''}
+        ${isOwner() ? `<a href="#/admin/settings" class="${sub === 'settings' ? 'on' : ''}">تنظیمات سایت</a>` : ''}
+        ${isOwner() ? `<a href="#/admin/managers" class="${sub === 'managers' ? 'on' : ''}">👔 مدیران فروشگاه</a>` : ''}
+        ${canDo('products') ? `<a href="#/admin/new" class="${sub === 'new' ? 'on' : ''}">+ محصول جدید</a>` : ''}
       </nav>
       <div class="adm-side-foot">
         <span style="font-size:10.5px;color:${isApi() ? 'var(--green)' : 'var(--mut)'};padding:2px 10px">
           ${isApi() ? '● حالت سرور واقعی — دیتا مشترک' : '○ حالت دمو (حافظه مرورگر)'}
         </span>
         <a href="#/" class="adm-shop">↗ مشاهده فروشگاه</a>
-        <button id="admBackup">⬇ پشتیبان‌گیری از دیتا</button>
-        <button id="admRestore">⬆ بازیابی نسخه پشتیبان</button>
-        <button id="admReset">بازنشانی دیتا به حالت اولیه</button>
+        ${isOwner() ? `<button id="admBackup">⬇ پشتیبان‌گیری از دیتا</button>
+        <button id="admRestore">⬆ بازیابی نسخه پشتیبان</button>` : ''}
+        ${isOwner() ? `<button id="admReset">بازنشانی دیتا به حالت اولیه</button>` : ''}
         <button id="admLogout">خروج از پنل</button>
       </div>
     </aside>
     <main class="adm-main">${main}</main>
-  </div>`;
+  `;
 }
 
 function bindAdmin(seg) {
@@ -70,6 +112,7 @@ function bindAdmin(seg) {
   if (sub === 'orders') fillOrders();
   if (sub === 'discounts') fillDiscounts();
   if (sub === 'settings') fillSettings();
+  if (sub === 'managers') fillManagers();
   if (sub === 'dash') fillDash();
 }
 function setBadge(el, n) { const b = qs(el); if (b) b.textContent = faNum(n); }
@@ -86,12 +129,16 @@ function admLoginView() {
       <h1>ورود به پنل مدیریت</h1>
       <p class="dim">برای مدیریت محصولات و سفارش‌ها وارد شوید.</p>
       <div class="field" style="margin-top:22px">
+        <label>نام کاربری <span class="dim">(فقط مدیران فروشگاه — مالک خالی بگذارد)</span></label>
+        <input id="admUser" placeholder="اختیاری" autocomplete="username" dir="ltr" style="text-align:left">
+      </div>
+      <div class="field">
         <label>رمز عبور</label>
         <input type="password" id="admPass" placeholder="••••••••" autocomplete="current-password">
-        <span class="err-t">رمز عبور اشتباه است</span>
+        <span class="err-t">نام کاربری یا رمز اشتباه است</span>
       </div>
       <button class="btn btn-solid btn-full" type="submit" style="margin-top:16px">ورود به پنل</button>
-      <p class="dim" style="font-size:11.5px;margin-top:14px;text-align:center">رمز عبور را مالک فروشگاه می‌داند و می‌تواند آن را از بخش «تنظیمات» تغییر دهد.</p>
+      <p class="dim" style="font-size:11.5px;margin-top:14px;text-align:center">مالک فروشگاه فقط با رمز وارد می‌شود؛ کارمندان هم نام‌کاربری و هم رمز خود را وارد می‌کنند.</p>
       <a href="#/" style="display:block;text-align:center;font-size:12px;color:var(--mut);margin-top:18px">← بازگشت به فروشگاه</a>
     </form>
   </div>`;
@@ -294,7 +341,7 @@ function admSettings() {
   </form>
 
   <form id="passForm" class="fsec" style="max-width:760px;margin-top:26px" novalidate>
-    <h3 style="margin-bottom:12px;color:var(--gold2)">تغییر رمز عبور مدیر</h3>
+    <h3 style="margin-bottom:12px;color:var(--gold2)">تغییر رمز عبور مالک</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
       <div class="field"><label>رمز فعلی</label><input type="password" id="spCur" autocomplete="current-password"></div>
       <div class="field"><label>رمز جدید</label><input type="password" id="spNew" autocomplete="new-password"></div>
@@ -363,7 +410,100 @@ async function changeAdminPass(e) {
     localStorage.setItem('noir_spass', nw);
   }
   qs('#spCur').value = ''; qs('#spNew').value = ''; qs('#spNew2').value = '';
-  toast('✔ رمز عبور تغییر کرد — از این به بعد با رمز جدید وارد شوید');
+  toast('✔ رمز مالک تغییر کرد — از این به بعد با رمز جدید وارد شوید');
+}
+
+/* ============================== مدیریت مدیران فروشگاه ============================== */
+const MGR_PERMS = [
+  { k: 'products', label: 'مدیریت محصولات', desc: 'افزودن، ویرایش، حذف و تغییر تصویر محصولات' },
+  { k: 'orders', label: 'مدیریت سفارش‌ها', desc: 'دیدن لیست سفارش‌ها و تغییر وضعیت آن‌ها' },
+  { k: 'discounts', label: 'کدهای تخفیف', desc: 'ساخت، فعال‌سازی و حذف کدهای تخفیف' }
+];
+
+/* خواندن مدیران — حالت دمو از localStorage */
+function staticManagers() {
+  try { return JSON.parse(localStorage.getItem('noir_managers') || '[]'); } catch (e) { return []; }
+}
+function saveStaticManagers(list) { localStorage.setItem('noir_managers', JSON.stringify(list)); }
+
+/* رندر صفحه مدیران — فقط در دسترس مالک */
+function admManagers() {
+  return `
+  <div class="adm-h"><h1>👔 مدیران فروشگاه</h1><span class="dim">کارمندان خود را اضافه کنید و سطح دسترسی هرکدام را تعیین نمایید</span></div>
+
+  <form id="mgrAddForm" class="fsec" style="max-width:760px" novalidate>
+    <h3 style="margin-bottom:14px;color:var(--gold2)">➕ افزودن مدیر جدید</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div class="field"><label>نام و نام خانوادگی</label><input id="mgName" placeholder="مثلاً: سارا محمدی"></div>
+      <div class="field"><label>نام کاربری <span class="dim">(لاتین)</span></label><input id="mgUser" placeholder="sara" dir="ltr" style="text-align:left" autocomplete="off"></div>
+      <div class="field"><label>رمز عبور اولیه</label><input id="mgPass" type="password" placeholder="••••••••" autocomplete="new-password"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px"><label>سطح دسترسی</label></div>
+    <div class="permg">
+      ${MGR_PERMS.map(p => `<label class="permi"><input type="checkbox" data-pmgr="${p.k}"><span><b>${p.label}</b><small>${p.desc}</small></span></label>`).join('')}
+    </div>
+    <button type="submit" class="btn btn-solid" style="margin-top:16px">✚ ایجاد حساب مدیر</button>
+  </form>
+
+  <div class="fsec" style="max-width:760px;margin-top:26px">
+    <h3 style="margin-bottom:14px;color:var(--gold2)">📋 مدیران فعلی (<span id="mgrCount">۰</span>)</h3>
+    <div id="mgrList"></div>
+  </div>`;
+}
+
+/* پرکردن لیست مدیران */
+async function fillManagers() {
+  const box = qs('#mgrList'); if (!box) return;
+  let list;
+  if (isApi()) {
+    try { list = await apiFetch('/api/managers'); } catch (e) { box.innerHTML = '<p class="dim">خطا در خواندن لیست مدیران</p>'; return; }
+  } else list = staticManagers();
+  qs('#mgrCount').textContent = faNum(list.length);
+  if (!list.length) { box.innerHTML = '<p class="dim" style="text-align:center;padding:20px">هنوز مدیری ایجاد نکرده‌اید. اولین کارمندتان را از بالا اضافه کنید.</p>'; return; }
+  renderManagers(list);
+}
+function renderManagers(list) {
+  const box = qs('#mgrList'); if (!box) return;
+  box.innerHTML = list.map(m => `
+    <div class="mgr-row" data-mgrid="${esc(m.id)}">
+      <div class="mgr-head">
+        <div class="mgr-id">
+          <b>${esc(m.name || m.user)}</b>
+          <span class="dim" dir="ltr">@${esc(m.user)}</span>
+        </div>
+        <div class="mgr-btns">
+          <button type="button" class="btn btn-ghost btn-sm" data-mgp="${m.id}">🔑 تغییر رمز</button>
+          <button type="button" class="btn btn-dark btn-sm" data-mgd="${m.id}" style="color:#d0604f">🗑 حذف</button>
+        </div>
+      </div>
+      <div class="permg" style="margin-top:12px">
+        ${MGR_PERMS.map(p => `<label class="permi sm"><input type="checkbox" data-mgperm="${p.k}" data-mgpermfor="${m.id}"${(m.perms || []).includes(p.k) ? ' checked' : ''}><span><b>${p.label}</b></span></label>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+/* افزودن مدیر جدید */
+async function addManager(e) {
+  e.preventDefault();
+  const name = qs('#mgName').value.trim(), user = qs('#mgUser').value.trim(), pass = qs('#mgPass').value;
+  const perms = qsa('[data-pmgr]:checked').map(x => x.dataset.pmgr);
+  if (!name) { toast('نام مدیر را بنویسید', true); return; }
+  if (!/^[a-zA-Z0-9_.-]{3,40}$/.test(user)) { toast('نام کاربری فقط حروف لاتین، عدد و _ . - ، ۳ تا ۴۰ کاراکتر', true); return; }
+  if (pass.length < 4 || pass.length > 60) { toast('رمز باید ۴ تا ۶۰ کاراکتر باشد', true); return; }
+  if (!perms.length) { toast('حداقل یک سطح دسترسی بدهید', true); return; }
+  if (isApi()) {
+    let r; try { r = await apiFetch('/api/managers', { method: 'POST', body: JSON.stringify({ name, user, pass, perms }) }); }
+    catch (err) { toast('ذخیره روی سرور ممکن نشد', true); return; }
+    if (!r || r.error) { toast(r && r.error ? r.error : 'ذخیره ممکن نشد', true); return; }
+  } else {
+    const list = staticManagers();
+    if (list.some(m => m.user.toLowerCase() === user.toLowerCase())) { toast('این نام کاربری قبلاً گرفته شده', true); return; }
+    list.push({ id: 'm' + Date.now(), user, pass, name, perms, created: new Date().toISOString() });
+    saveStaticManagers(list);
+  }
+  qs('#mgrAddForm').reset();
+  toast(`✔ مدیر «${name}» با موفقیت ساخته شد`);
+  fillManagers();
 }
 
 /* ============================== DISCOUNT CODES ============================== */
@@ -637,6 +777,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('#admLogout')) {
       sessionStorage.removeItem('noir_admin');
       sessionStorage.removeItem('noir_token');
+      sessionStorage.removeItem('noir_role');
+      sessionStorage.removeItem('noir_name');
+      sessionStorage.removeItem('noir_perms');
       toast('از پنل خارج شدید');
       location.hash = '#/';
       return;
@@ -703,6 +846,65 @@ document.addEventListener('DOMContentLoaded', () => {
       qs('#simPrev-' + k).src = SETTINGS_INIT.imgs[k];       // بازگشت به تصویر اولیه
       qs(`[data-setimgval="${k}"]`).value = SETTINGS_INIT.imgs[k];
       toast('«پیش‌فرض» انتخاب شد — با «ذخیره تنظیمات» اعمال می‌شود');
+      return;
+    }
+    /* مدیران فروشگاه — حذف یا تغییر رمز */
+    const mgd = e.target.closest('[data-mgd]');
+    if (mgd) {
+      const row = mgd.closest('.mgr-row');
+      const who = row ? row.querySelector('b').textContent : 'این مدیر';
+      askBox(`حساب «${who}» برای همیشه حذف می‌شود. ادامه می‌دهید؟`, 'حذف', async () => {
+        if (isApi()) {
+          let r; try { r = await apiFetch('/api/managers/' + mgd.dataset.mgd, { method: 'DELETE' }); }
+          catch (err) { toast('حذف روی سرور ممکن نشد', true); return; }
+          if (!r || !r.ok) { toast(r && r.error ? r.error : 'حذف ممکن نشد', true); return; }
+        } else {
+          saveStaticManagers(staticManagers().filter(m => m.id !== mgd.dataset.mgd));
+        }
+        toast('✔ مدیر حذف شد');
+        fillManagers();
+      });
+      return;
+    }
+    const mgp = e.target.closest('[data-mgp]');
+    if (mgp) {
+      const id = mgp.dataset.mgp;
+      const row = mgp.closest('.mgr-row');
+      const who = row ? row.querySelector('b').textContent : 'این مدیر';
+      const nw = prompt(`رمز جدید برای «${who}» (۴ تا ۶۰ کاراکتر):`);
+      if (nw === null) return;
+      if (nw.length < 4 || nw.length > 60) { toast('رمز باید ۴ تا ۶۰ کاراکتر باشد', true); return; }
+      (async () => {
+        if (isApi()) {
+          let r; try { r = await apiFetch('/api/managers/' + id, { method: 'PUT', body: JSON.stringify({ pass: nw }) }); }
+          catch (err) { toast('تغییر رمز روی سرور ممکن نشد', true); return; }
+          if (!r || r.error) { toast(r && r.error ? r.error : 'تغییر رمز ممکن نشد', true); return; }
+        } else {
+          const list = staticManagers(); const m = list.find(x => x.id === id);
+          if (m) { m.pass = nw; saveStaticManagers(list); }
+        }
+        toast(`✔ رمز «${who}» تغییر کرد`);
+      })();
+      return;
+    }
+    /* تغییر لحظه‌ای سطح دسترسی مدیر */
+    const mgperm = e.target.closest('[data-mgperm]');
+    if (mgperm) {
+      const id = mgperm.dataset.mgpermfor;
+      const row = mgperm.closest('.mgr-row');
+      const perms = qsa(`[data-mgpermfor="${id}"]:checked`).map(x => x.dataset.mgperm);
+      if (!perms.length) { toast('حداقل یک دسترسی باید فعال باشد', true); mgperm.checked = true; return; }
+      (async () => {
+        if (isApi()) {
+          let r; try { r = await apiFetch('/api/managers/' + id, { method: 'PUT', body: JSON.stringify({ perms }) }); }
+          catch (err) { toast('ذخیره دسترسی‌ها روی سرور ممکن نشد', true); fillManagers(); return; }
+          if (!r || r.error) { toast(r && r.error ? r.error : 'ذخیره ممکن نشد', true); fillManagers(); return; }
+        } else {
+          const list = staticManagers(); const m = list.find(x => x.id === id);
+          if (m) { m.perms = perms; saveStaticManagers(list); }
+        }
+        toast('✔ سطح دسترسی ذخیره شد');
+      })();
       return;
     }
     if (e.target.closest('#admReset')) {
@@ -856,29 +1058,49 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.id === 'discForm') { discAdd(e); return; }
     if (e.target.id === 'setForm') { saveSettingsForm(e); return; }
     if (e.target.id === 'passForm') { changeAdminPass(e); return; }
+    if (e.target.id === 'mgrAddForm') { addManager(e); return; }
     if (e.target.id === 'admLoginForm') {
       e.preventDefault();
       (async () => {
+        const user = (qs('#admUser').value || '').trim();
         const pass = qs('#admPass').value;
         if (isApi()) {
           try {
             const res = await fetch('/api/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pass })
+              body: JSON.stringify({ user, pass })
             });
             if (!res.ok) throw new Error();
             const j = await res.json();
             sessionStorage.setItem('noir_token', j.token);
+            sessionStorage.setItem('noir_role', j.role || 'owner');
+            sessionStorage.setItem('noir_name', j.name || '');
+            sessionStorage.setItem('noir_perms', JSON.stringify(j.perms || []));
             router();
-            toast('خوش آمدید! وارد پنل مدیریت شدید');
+            toast(j.role === 'manager' ? `خوش آمدید! (ورود: ${j.name || 'مدیر فروشگاه'})` : 'خوش آمدید! وارد پنل مدیریت شدید');
           } catch (err) {
             qs('#admPass').closest('.field').classList.add('err');
           }
-        } else if (pass === (localStorage.getItem('noir_spass') || SETTINGS.adminPass)) {
+        } else if (!user && pass === (localStorage.getItem('noir_spass') || SETTINGS.adminPass)) {
           sessionStorage.setItem('noir_admin', '1');
+          sessionStorage.setItem('noir_role', 'owner');
+          sessionStorage.removeItem('noir_perms'); sessionStorage.removeItem('noir_name');
           router();
           toast('خوش آمدید! وارد پنل مدیریت شدید');
+        } else if (user) {
+          const mgrs = staticManagers();
+          const m = mgrs.find(x => x.user.toLowerCase() === user.toLowerCase() && x.pass === pass);
+          if (m) {
+            sessionStorage.setItem('noir_admin', '1');
+            sessionStorage.setItem('noir_role', 'manager');
+            sessionStorage.setItem('noir_name', m.name || m.user);
+            sessionStorage.setItem('noir_perms', JSON.stringify(m.perms || []));
+            router();
+            toast(`خوش آمدید! (ورود: ${m.name || m.user})`);
+          } else {
+            qs('#admPass').closest('.field').classList.add('err');
+          }
         } else {
           qs('#admPass').closest('.field').classList.add('err');
         }
